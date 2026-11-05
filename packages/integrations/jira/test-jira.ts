@@ -1,4 +1,5 @@
 import dotenv from "dotenv";
+import { promises as fs } from "fs";
 import { Story } from "./JiraStoryMapper";
 import { JiraSprintService } from "./JiraSprintService";
 import { JiraStoryService } from "./JiraStoryService";
@@ -34,9 +35,11 @@ async function test() {
   const provider = new AIProvider();
   const parser = new StructuredResponseService();
   const planner = new PlannerService(provider, parser);
-  const issues = await jira.getSprintStories(37);
+  const sprints=await jira.getSprints(2);
+  // console.log("Sprints "+(JSON.stringify(sprints, null, 2)))
+  const issues = await jira.getSprintStories(70);
   let testPlan;
-  console.log(issues);
+  // console.log(issues);
   const aggregatedTestCases = [];
   const storyTestPlans = [];
   for (const story of issues) {
@@ -44,18 +47,25 @@ async function test() {
     const issue = await storyService.getIssue(story.key);
     const mappedStory = StoryMapper.map(issue);
     const requirement = storyToRequirement(mappedStory);
-    console.log(JSON.stringify(requirement, null, 2));
+    // console.log(JSON.stringify(requirement, null, 2));
     testPlan = await planner.createPlan(requirement);
     storyTestPlans.push(testPlan);
     aggregatedTestCases.push(...testPlan.testCases);
     // console.log(`[PLANNER] Generated ${testPlan.testCases.length} test cases`);
-    console.log(JSON.stringify(storyTestPlans, null, 2));
     // console.log(
     //   `[Feedback] to Proceed further we need some clarifications on : `,
     // );
     // console.log(JSON.stringify(testPlan.clarifications, null, 2));
     
   }
+
+  console.log(JSON.stringify(storyTestPlans, null, 2));
+
+
+  await fs.writeFile(
+        "./output/sprint-plans.json",
+        JSON.stringify(storyTestPlans, null, 2),
+      );
 
   // console.log(JSON.stringify(aggregatedTestCases, null, 2));
 }

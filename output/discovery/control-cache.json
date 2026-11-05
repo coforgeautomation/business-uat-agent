@@ -1,0 +1,18 @@
+{
+  
+  "origin": {
+    "name": "Flying from",
+    "selector": "#fsporigin",
+    "role": "combobox"
+  },
+  "destination": {
+    "name": "Flying to",
+    "selector": "#fspdestination",
+    "role": "combobox"
+  },
+  "passengers": {
+    "name": "Book with Etihad Guest Miles From To Loading... Guests and Cabin Add Travel dates Add Search",
+    "selector": "#tabpanel-1",
+    "role": "tabpanel"
+  }
+}

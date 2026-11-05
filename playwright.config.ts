@@ -34,13 +34,13 @@ export default defineConfig({
 
   use: {
 
-    baseURL: process.env.BASE_URL,
+    baseURL: "https://www.etihad.com/en-in/",
 
-    headless: false,
+    headless: false, 
 
     actionTimeout: 15_000,
 
-    navigationTimeout: 30_000,
+    navigationTimeout: 120_000,
 
     screenshot: 'only-on-failure',
 

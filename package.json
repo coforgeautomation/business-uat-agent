@@ -9,9 +9,10 @@
     "@playwright/test": "^1.63.0",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
-    "@types/node": "^26.6.4",
+    "@types/node": "^26.6.6",
     "tsx": "^4.23.15",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
   },
   "workspaces": [
     "apps/*",
@@ -24,7 +25,9 @@
     "zod": "^4.6.5"
   },
   "scripts": {
-    "test": "playwright test",
+    "test1": "playwright test",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "test:web": "playwright test",
     "test:headed": "playwright test --headed",
     "test:debug": "playwright test --debug",
@@ -38,6 +41,7 @@
     "web": "cd apps/web && npm run dev",
     "api": "npx tsx apps/api/src/server.ts",
     "dev:web": "cd apps/web && npm run dev",
-    "dev:api": "npx tsx apps/api/src/server.ts"
+    "dev:api": "npx tsx apps/api/src/server.ts",
+    "execute:tests": "tsx packages/execution/index.ts"
   }
 }

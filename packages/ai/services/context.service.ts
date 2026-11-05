@@ -16,6 +16,7 @@ export class ContextService {
 
     let context: {
       rules: {
+        clarification: string;
         rule: string;
         addedOn: string;
       }[];
@@ -24,20 +25,27 @@ export class ContextService {
     };
 
     try {
-      context = JSON.parse(await fs.readFile(file, "utf8"));
-    } catch {}
+      const content = await fs.readFile(file, "utf8");
+
+      const parsed = JSON.parse(content);
+
+      context = {
+        rules: parsed?.rules ?? [],
+      };
+    } catch {
+      context = {
+        rules: [],
+      };
+    }
 
     context.rules.push(
       ...rules.map((rule) => ({
+        clarification: "",
         rule,
         addedOn: new Date().toISOString(),
       })),
     );
 
-    await fs.writeFile(
-      file,
-
-      JSON.stringify(context, null, 2),
-    );
+    await fs.writeFile(file, JSON.stringify(context, null, 2));
   }
 }

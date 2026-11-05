@@ -13,13 +13,14 @@ interface ChatResponse {
 }
 
 export class AIProvider {
-
+  
+  public baseUrl:string;
   private readonly apiUrl: string;
   private readonly apiKey: string;
   private readonly modelName: string;
 
   constructor() {
-
+    this.baseUrl =process.env.BASE_URL ?? 'https://www.etihad.com/en-in/';
     this.apiUrl =process.env.API_URL ?? '';
     this.apiKey =process.env.API_KEY ?? '';
     this.modelName =process.env.MODEL_NAME ?? '';
