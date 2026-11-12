@@ -227,8 +227,8 @@ output
 ### Run a Sprint-Plan Test Case
 
 From any terminal, run one case from the real `output/sprint-plan.json` through
-typed planning, headed Playwright MCP execution, generated-test creation, and a
-fresh Playwright replay:
+existing-test reuse when available, headed Playwright MCP exploration when
+needed, and Playwright replay:
 
 ```bash
 npx tsx packages/orchestration/src/cli.ts --case TC-AIT-6-013
@@ -242,8 +242,8 @@ npx tsx packages/orchestration/src/cli.ts --story AIT-6
 
 Use `--plan <path>` to select a different sprint-plan JSON file. The reader
 normalizes the repository's existing `sprintId`/`stories[].storyId`/
-`testCases[].id` shape; it does not rewrite the source plan. The CLI and
-orchestrator do not gate execution on `reviewStatus`.
+`testCases[].id` shape; it does not rewrite the source plan. Only test cases
+whose `reviewStatus` is `approved` are exposed for execution.
 
 Generated specs are written only under
 `packages/playwright/tests/generated/<storyId>/<testCaseId>.spec.ts`. Run a
@@ -255,6 +255,13 @@ npx playwright test generated/AIT-6/TC-AIT-6-013.spec.ts --project=chromium
 
 Generated test paths are relative to the configured Playwright `testDir`
 (`packages/playwright/tests`).
+
+Execution prefers reuse: a valid case spec is replayed first without creating a
+replacement. If it fails, MCP exploration attempts bounded locator healing. When
+MCP verifies the failed step, only that step block in the existing spec is
+updated; full generation is a fallback when a targeted repair is not safe or no
+reusable spec exists. Confirmed application failures are reported without
+rewriting the existing test.
 
 The MCP browser is headed and isolated per case. Replay uses a fresh Playwright
 browser context with the project's `playwright.config.ts` settings. Reusable
@@ -296,12 +303,32 @@ replay process. `MAX_HEAL_ATTEMPTS` (default `2`) bounds semantic-locator repair
 attempts. Repairs can update locators only; approved assertions are never
 removed or changed.
 
-In the web dashboard, clicking **Execute Tests** on an approved story creates
-the same queued job and opens `/executions/<executionId>`. The execution screen
-polls the job for live case/step progress, observations, evidence, and the final
-summary. Progress is also available from the job response; screenshots can be
-retrieved through `GET /api/executions/<executionId>/artifacts/<artifactName>`.
-Test-data values are redacted from persisted progress.
+The Sprint Dashboard provides story navigation. Opening **View Test Cases**
+shows story health, automation coverage, business test-case cards, and run
+history. **Execute All Tests** opens the execution screen for the queued story
+job; an individual **Run Test** does the same for one case. The execution
+screen polls for live case/step progress, observations, evidence, and the final
+summary. Return navigation preserves the story page, selected filter, and
+expanded case. Screenshots can be retrieved through
+`GET /api/executions/<executionId>/artifacts/<artifactName>`. Test-data values
+are redacted from persisted progress.
+
+The story test-case screen reports story-level run summaries, automation
+coverage, individual test-case status, and execution history. **Generate
+Missing Automation** queues only cases without a valid generated spec.
+**Update Automation** is the explicit replacement action available in a
+test-case's expanded details. Generation jobs perform MCP exploration, generate
+the spec, and replay it for validation.
+Queued executions and interrupted generation batches are not restarted when
+the API service starts. Interrupted generation batches appear as paused on the
+story page and require an explicit **Resume Automation Generation** action.
+
+Generated scripts wrap approved business steps in Playwright `test.step`
+events. A reporter streams step start/completion events into the active
+execution job so the dashboard can show progress for both script replay and
+MCP execution. Script metadata and the latest execution checkpoint are stored
+as atomic JSON records under `output/automation/script-repository/` and
+`output/automation/execution-state/`.
 
 The generated spec reads test data from `UAT_TESTDATA_<NAME>` environment
 variables (camelCase names become uppercase snake case, for example
@@ -314,9 +341,11 @@ spec independently.
 
 Each case run is stored in
 `output/automation/executions/<executionId>/`: `result.json`, `history.jsonl`,
-`action-plan.json`, `steps.json`, `metrics.json`, the isolated MCP config and
-browser output, and any exploration/replay screenshots, videos, error context,
-or traces. Story runs have their own summary/history/metrics directory and
+`action-plan.json` when MCP planning runs, `steps.json`, `metrics.json`, the
+isolated MCP config and browser output when needed, and any exploration/replay
+screenshots, videos, error context, or traces. Reuse-first runs keep the initial
+replay artifacts separate from MCP-healing replay artifacts. Story runs have
+their own summary/history/metrics directory and
 include each child case's artifact paths. The persistent semantic locator
 registry is `output/automation/locator-registry/etihad.json`.
 

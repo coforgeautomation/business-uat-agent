@@ -6,6 +6,7 @@ import { proposeRepair, type RepairProposal } from "./healer.js";
 export type StepResult = {
   stepId: string; sourceStep: string; status: "passed" | "failed" | "blocked";
   detail: string; locatorKey?: string; reusedLocator?: boolean; repairs?: RepairProposal[];
+  recoveryReason?: string;
 };
 
 export class ApplicationAssertionError extends Error {
@@ -20,6 +21,15 @@ export async function executePlan(input: {
   pageKey?: string; resolver?: LocatorResolver;
   onStepStart?: (step: PlannedStep, completedSteps: number, totalSteps: number) => void | Promise<void>;
   onStep?: (step: StepResult, completedSteps: StepResult[], totalSteps: number) => void | Promise<void>;
+  onLocatorDiscoveryRetry?: (step: PlannedStep, attempt: number, limit: number, detail: string) => void | Promise<void>;
+  onMcpPlannerRecovery?: (
+    step: PlannedStep,
+    snapshot: string,
+    failure: string,
+    attempt: number,
+    limit: number,
+  ) => Promise<{ step: PlannedStep; reason: string } | { blockedReason: string }>;
+  onPlanStepApplied?: (originalStep: PlannedStep, effectiveStep: PlannedStep) => void | Promise<void>;
 }): Promise<StepResult[]> {
   const plan = ExecutionPlanSchema.parse(input.plan);
   const resolver = input.resolver ?? new LocatorResolver();
@@ -29,12 +39,58 @@ export async function executePlan(input: {
   for (const [stepIndex, step] of plan.steps.entries()) {
     await input.onStepStart?.(step, results.length, plan.steps.length);
     try {
-      const result = await executeStep(step, input.browser, resolver, input.testData ?? {}, pageKey, plan.steps[stepIndex + 1]);
+      let effectiveStep = step;
+      let recoveryReason: string | undefined;
+      let result: Awaited<ReturnType<typeof executeStep>>;
+      const recoveryLimit = input.onMcpPlannerRecovery ? configuredMcpPlannerRecoveryAttempts() : 0;
+      let recoveryAttempt = 0;
+      while (true) {
+        try {
+          result = await executeStep(
+            effectiveStep,
+            input.browser,
+            resolver,
+            input.testData ?? {},
+            pageKey,
+            plan.steps[stepIndex + 1],
+            input.onLocatorDiscoveryRetry,
+          );
+          break;
+        } catch (error) {
+          if (!(error instanceof LocatorResolutionError)
+              || !input.onMcpPlannerRecovery
+              || recoveryAttempt >= recoveryLimit) {
+            throw error;
+          }
+          recoveryAttempt += 1;
+          const snapshot = await readSnapshot(input.browser);
+          const decision = await input.onMcpPlannerRecovery(
+            effectiveStep,
+            snapshot,
+            error.message,
+            recoveryAttempt,
+            recoveryLimit,
+          );
+          if ("blockedReason" in decision) {
+            throw new LocatorResolutionError(
+              `MCP planner blocked recovery for ${step.id}: ${decision.blockedReason}`,
+            );
+          }
+          validateAlternateStep(effectiveStep, decision.step);
+          effectiveStep = decision.step;
+          recoveryReason = decision.reason;
+        }
+      }
       const stepResult: StepResult = {
-        stepId: step.id, sourceStep: step.sourceStep, status: "passed", detail: result.detail,
+        stepId: step.id,
+        sourceStep: step.sourceStep,
+        status: "passed",
+        detail: recoveryReason ? `${result.detail}; MCP planner recovery: ${recoveryReason}` : result.detail,
         locatorKey: result.locatorKey, reusedLocator: result.reused, repairs: result.repairs,
+        ...(recoveryReason ? { recoveryReason } : {}),
       };
       results.push(stepResult);
+      if (effectiveStep !== step) await input.onPlanStepApplied?.(step, effectiveStep);
       await input.onStep?.(stepResult, [...results], plan.steps.length);
       if (step.action === "navigate") pageKey = pageKeyFromUrl(step.value ?? "");
     } catch (error) {
@@ -52,6 +108,29 @@ export async function executePlan(input: {
   return results;
 }
 
+function validateAlternateStep(original: PlannedStep, alternate: PlannedStep): void {
+  if (alternate.id !== original.id
+      || alternate.sourceStep !== original.sourceStep
+      || alternate.action !== original.action
+      || alternate.value !== original.value
+      || alternate.valueRef !== original.valueRef
+      || alternate.expected !== original.expected
+      || alternate.timeoutMs !== original.timeoutMs
+      || alternate.locatorKey !== original.locatorKey
+      || !alternate.target
+      || alternate.target === original.target) {
+    throw new Error(`MCP planner changed approved intent instead of proposing a new target for ${original.id}`);
+  }
+}
+
+function configuredMcpPlannerRecoveryAttempts(): number {
+  const raw = Number(process.env.MCP_PLANNER_RECOVERY_ATTEMPTS ?? "2");
+  if (!Number.isInteger(raw) || raw < 0 || raw > 3) {
+    throw new Error("MCP_PLANNER_RECOVERY_ATTEMPTS must be an integer from 0 to 3");
+  }
+  return raw;
+}
+
 async function executeStep(
   step: PlannedStep,
   browser: PlaywrightMcpClient,
@@ -59,6 +138,7 @@ async function executeStep(
   data: Record<string, unknown>,
   pageKey: string,
   nextStep?: PlannedStep,
+  onLocatorDiscoveryRetry?: (step: PlannedStep, attempt: number, limit: number, detail: string) => void | Promise<void>,
 ) {
   if (step.action === "navigate") {
     await callWithRetry(browser, "browser_navigate", { url: step.value });
@@ -88,16 +168,19 @@ async function executeStep(
     await callWithRetry(browser, "browser_wait_for", { text, time: step.timeoutMs ? step.timeoutMs / 1000 : undefined });
     return { detail: `Waited for text: ${text}` };
   }
-  if (step.action === "assertText") {
-    const expected = resolveTestValue(step.valueRef ?? step.expected ?? step.value ?? "", data);
-    if (!snapshot.includes(expected)) throw new ApplicationAssertionError(`Expected text not found: ${expected}`);
-    return { detail: `Verified page contains text '${expected}'` };
-  }
   if (step.action === "assertUrl") {
     const expected = resolveTestValue(step.valueRef ?? step.expected ?? step.value ?? "", data);
     const url = snapshot.match(/Page URL:\s*(\S+)/)?.[1] ?? "";
     if (!url.includes(expected)) throw new ApplicationAssertionError(`Expected URL to contain '${expected}', got '${url}'`);
     return { detail: `Verified URL contains '${expected}'` };
+  }
+  if (step.action === "assertUrlNot") {
+    const forbidden = resolveTestValue(step.valueRef ?? step.expected ?? step.value ?? "", data);
+    const url = snapshot.match(/Page URL:\s*(\S+)/)?.[1] ?? "";
+    if (url.toLocaleLowerCase().includes(forbidden.toLocaleLowerCase())) {
+      throw new ApplicationAssertionError(`Expected URL not to contain '${forbidden}', got '${url}'`);
+    }
+    return { detail: `Verified URL does not contain '${forbidden}'` };
   }
   if (step.action === "assertVisible" && step.expected) {
     const expected = resolveTestValue(step.valueRef ?? step.expected, data);
@@ -167,8 +250,16 @@ async function executeStep(
   const locatorTarget = canonicalLocatorTarget(target, step, data);
   const resolvedResult = await resolveWithRepair({
     step, target: locatorTarget, action: step.action, pageKey, snapshot, browser, resolver, data,
+    onLocatorDiscoveryRetry,
   });
   const resolved = resolvedResult.locator;
+  if (step.action === "assertText") {
+    const expected = resolveTestValue(step.valueRef ?? step.expected ?? step.value ?? "", data);
+    if (!snapshotSubtreeContainsText(snapshot, resolved.mcpRef, expected)) {
+      throw new ApplicationAssertionError(`Expected '${target}' to contain text '${expected}'`);
+    }
+    return { detail: `Verified '${target}' contains text '${expected}'`, locatorKey: resolved.key, reused: resolved.reused, repairs: resolvedResult.repairs };
+  }
   if (step.action === "click") await callActionWithStaleRefRecovery({
     browser, resolver, target: locatorTarget, pageKey, data, ref: resolved.mcpRef,
   });
@@ -183,9 +274,9 @@ async function executeStep(
     if (step.action === "assertDisabled" && !hasDisabled) throw new ApplicationAssertionError(`Expected disabled: ${target}`);
     if (step.action === "assertEnabled" && hasDisabled) throw new ApplicationAssertionError(`Expected enabled: ${target}`);
     if (step.action === "assertSelected" || step.action === "assertUnselected") {
-      const observable = /\[(?:checked|selected|pressed)(?:\s|=|\])|aria-(?:selected|pressed)="(?:true|false)"|checked="(?:true|false)"/i.test(line);
+      const observable = /\[(?:checked|selected|pressed)(?:\s|=|\])|aria-(?:checked|selected|pressed)="(?:true|false)"|aria-current="(?:page|step|location|date|time|true)"|checked="(?:true|false)"/i.test(line);
       if (!observable) throw new ApplicationAssertionError(`Selection state for '${target}' is not exposed by the live page`);
-      const selected = /\[(?:checked|selected|pressed)(?:\s|])|(?:aria-selected|aria-pressed|checked)="?true"?/i.test(line);
+      const selected = /\[(?:checked|selected|pressed)\]|(?:aria-checked|aria-selected|aria-pressed)="?true"?|aria-current="(?:page|step|location|date|time|true)"|checked="true"/i.test(line);
       if (step.action === "assertSelected" && !selected) throw new ApplicationAssertionError(`Expected '${target}' to be selected`);
       if (step.action === "assertUnselected" && selected) throw new ApplicationAssertionError(`Expected '${target}' not to be selected`);
     }
@@ -210,6 +301,7 @@ async function resolveWithRepair(input: {
   step: PlannedStep; target: string; pageKey: string; snapshot: string;
   browser: PlaywrightMcpClient; resolver: LocatorResolver; data: Record<string, unknown>;
   action: PlannedStep["action"];
+  onLocatorDiscoveryRetry?: (step: PlannedStep, attempt: number, limit: number, detail: string) => void | Promise<void>;
 }) {
   const sensitiveValues = Object.values(input.data).map(String);
   try {
@@ -222,6 +314,12 @@ async function resolveWithRepair(input: {
     const repairs: RepairProposal[] = [];
     let failure: unknown = error;
     for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      await input.onLocatorDiscoveryRetry?.(
+        input.step,
+        attempt + 1,
+        maxAttempts,
+        `Locator discovery failed for '${input.target}': ${error.message}. Asking Planner for an alternate path and re-discovering with MCP`,
+      );
       const currentSnapshot = await waitForTargetSnapshot(input.browser, input.target);
       const proposal = await proposeRepair({
         failure: error instanceof Error ? error.message : String(error),
@@ -236,7 +334,7 @@ async function resolveWithRepair(input: {
       });
       repairs.push(proposal);
       if (proposal.status !== "repair_proposed" || !proposal.locatorHint) {
-        throw new Error(`Locator repair blocked for ${input.step.id}: ${proposal.reason}`);
+        throw new LocatorResolutionError(`Locator repair blocked for ${input.step.id}: ${proposal.reason}`);
       }
       try {
         const locator = await input.resolver.resolve({
@@ -254,7 +352,7 @@ async function resolveWithRepair(input: {
         if (!(repairError instanceof LocatorResolutionError)) throw repairError;
       }
     }
-    throw new Error(`Locator repair limit reached for ${input.step.id}: ${failure instanceof Error ? failure.message : String(failure)}`);
+    throw new LocatorResolutionError(`Locator repair limit reached for ${input.step.id}: ${failure instanceof Error ? failure.message : String(failure)}`);
   }
 }
 
@@ -390,6 +488,22 @@ function snapshotMentionsTarget(snapshot: string, target: string) {
     const name = snapshotLineName(line);
     return name !== undefined && aliases.includes(normalizeTarget(name));
   }) || aliases.some(alias => alias && normalizeTarget(snapshot).includes(alias));
+}
+
+function snapshotSubtreeContainsText(snapshot: string, ref: string, expected: string): boolean {
+  const lines = snapshot.split("\n");
+  const targetIndex = lines.findIndex(line => line.includes(`[ref=${ref}]`));
+  if (targetIndex < 0) return false;
+  const targetIndent = lines[targetIndex].match(/^\s*/)?.[0].length ?? 0;
+  const subtree = [lines[targetIndex]];
+  for (let index = targetIndex + 1; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (!line.trim()) continue;
+    const indent = line.match(/^\s*/)?.[0].length ?? 0;
+    if (indent <= targetIndent) break;
+    subtree.push(line);
+  }
+  return subtree.join("\n").toLocaleLowerCase().includes(expected.toLocaleLowerCase());
 }
 
 function isGuestsCabinTarget(target: string) {

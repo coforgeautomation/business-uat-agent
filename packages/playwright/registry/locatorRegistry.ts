@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
+import { renameWithRetry } from "../../domain/src/atomicFile.js";
 import { LocatorDescriptorSchema, type LocatorDescriptor } from "../schemas/locator.schema.js";
 
 const RecordSchema = z.object({
@@ -146,8 +147,15 @@ export class LocatorRegistry {
   private async save(store: z.infer<typeof StoreSchema>) {
     await mkdir(path.dirname(this.file), { recursive: true });
     const tempFile = `${this.file}.${process.pid}.${randomUUID()}.tmp`;
-    await writeFile(tempFile, JSON.stringify(store, null, 2), "utf8");
-    await rename(tempFile, this.file);
+    try {
+      await writeFile(tempFile, JSON.stringify(store, null, 2), "utf8");
+      await renameWithRetry(tempFile, this.file);
+    } catch (error) {
+      await unlink(tempFile).catch(cleanupError => {
+        if ((cleanupError as NodeJS.ErrnoException).code !== "ENOENT") throw cleanupError;
+      });
+      throw error;
+    }
   }
 
   private async update(mutator: (store: z.infer<typeof StoreSchema>) => void): Promise<void> {

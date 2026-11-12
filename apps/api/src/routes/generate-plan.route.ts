@@ -2,7 +2,6 @@ import { Router } from "express";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { SprintPlanningService } from "../../../../packages/orchestration/SprintPlanningService";
-import { writeTestPlanTextExport } from "../lib/text-export";
 
 export const generatePlanRouter = Router();
 
@@ -32,7 +31,6 @@ async function readSprintDoc(sprintId: number): Promise<any | null> {
 
 generatePlanRouter.post("/", async (req, res) => {
   try {
-    console.log("Request received:", req.body);
     const { sprintId, storyId } = req.body;
     const service = new SprintPlanningService();
     await fs.mkdir(path.join(process.cwd(), "output"), { recursive: true });
@@ -40,7 +38,6 @@ generatePlanRouter.post("/", async (req, res) => {
     const sprintDoc = await readSprintDoc(Number(sprintId));
 
     if (storyId) {
-      console.log("Generating story (cached Jira data)...", storyId);
       const cachedStory = sprintDoc?.stories?.[storyId];
 
       const testPlan = cachedStory?.requirement
@@ -76,13 +73,10 @@ generatePlanRouter.post("/", async (req, res) => {
       existing.status = "in-review";
 
       await fs.writeFile(sprintPlanFile, JSON.stringify(existing, null, 2));
-      await writeTestPlanTextExport(updatedStory);
 
-      console.log("Generated:", storyId);
       return res.json({ success: true, plans: existing.stories });
     }
 
-    console.log("Calling planner...");
     const syncedStories = Object.values(sprintDoc?.stories ?? {}).filter(
       (s: any) => s.inSprint && s.requirement,
     ) as any[];
@@ -111,8 +105,6 @@ generatePlanRouter.post("/", async (req, res) => {
       sprintPlanFile,
       JSON.stringify(sprintPlan, null, 2),
     );
-    await Promise.all(sprintPlan.stories.map(writeTestPlanTextExport));
-    console.log("Generated:", plans.length);
     return res.json({
       success: true,
       plans: sprintPlan.stories,

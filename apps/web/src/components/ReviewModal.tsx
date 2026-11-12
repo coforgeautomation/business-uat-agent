@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { getTextExportUrl, reviewTestCases } from "@/lib/api";
+import { reviewTestCases } from "@/lib/api";
 
 const APPROVAL_THRESHOLD_PERCENT = 70;
 
@@ -241,14 +241,6 @@ export default function ReviewModal({
               </span>
             </div>
 
-            <a
-              href={getTextExportUrl(plan.storyId)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-            >
-              View As Text
-            </a>
           </div>
 
           {/* Test Coverage */}

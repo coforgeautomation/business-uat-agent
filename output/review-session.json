@@ -1,0 +1,28 @@
+{
+  "stories": {
+    "AIT-6": {
+      "feedbackHistory": [
+        {
+          "version": 1,
+          "answers": {
+            "CLAR-001": "then Airport Should not visible in Destination Airport Selection Suggestion",
+            "CLAR-002": "Geo Location, And Input City Country",
+            "CLAR-003": "No",
+            "CLAR-004": "FLight Listed And Flight detaisl vcisible ",
+            "CLAR-005": "Opew-jaw Was handled in Multicity"
+          },
+          "additionalFeedback": "",
+          "createdOn": "2026-11-11T07:47:43.261Z"
+        },
+        {
+          "version": 2,
+          "answers": {
+            "CLAR-003": "Ignore this, As Not Required"
+          },
+          "additionalFeedback": "",
+          "createdOn": "2026-11-11T07:49:53.213Z"
+        }
+      ]
+    }
+  }
+}

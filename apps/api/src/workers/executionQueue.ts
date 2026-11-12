@@ -35,6 +35,7 @@ export class ExecutionQueue {
 
   get queuedCount() { return this.pending.length; }
   get activeCount() { return this.active; }
+  isKnown(executionId: string) { return this.known.has(executionId); }
 
   private drain(): void {
     while (this.active < this.concurrency && this.pending.length > 0) {

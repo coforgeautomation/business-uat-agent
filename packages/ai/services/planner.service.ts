@@ -7,7 +7,11 @@ import { StructuredResponseService } from "./structured-response.service";
 import fs from "fs/promises";
 import path from "path";
 import { ExecutionPlanSchema } from "@domain/schemas/executionPlan.schema";
-import { buildTypedActionPlan } from "./typedActionPlan.js";
+import {
+  buildTypedActionPlan,
+  normalizeApplicationNavigation,
+  validatePlanActionIntents,
+} from "./typedActionPlan.js";
 
 export class PlannerService {
   constructor(
@@ -34,22 +38,19 @@ export class PlannerService {
     ]);
 
     const plan = await this.structuredResponse.parse(response, TestPlanSchema);
-    // Keep legacy top-level coverageSummary in sync for existing UI/text-export consumers.
+    const storyLinkedPlan = linkTestCaseIdsToStory(plan, requirement.storyId);
+    // Keep the legacy top-level summary synchronized with structured coverage data.
     return {
-      ...plan,
-      coverageSummary: plan.coverageSummary || plan.coverage?.coverageSummary || "",
+      ...storyLinkedPlan,
+      coverageSummary: storyLinkedPlan.coverageSummary || storyLinkedPlan.coverage?.coverageSummary || "",
     };
   }
 
   private async readDomainContext(): Promise<string> {
-    try {
-      return await fs.readFile(
-        path.join(process.cwd(), "packages","", "domain", "etihad-context.md"),
-        "utf8",
-      );
-    } catch {
-      return "";
-    }
+    return fs.readFile(
+      path.join(process.cwd(), "packages", "domain", "context", "etihad-context.md"),
+      "utf8",
+    );
   }
 
   async makeTypedPlan(testCase: TestCase, storyId?: string) {
@@ -60,14 +61,38 @@ export class PlannerService {
     }
     const masked = maskTestData(testCase);
     const response = await this.provider.chat([
-        { role: "system", content: `Convert the supplied UI test case into a JSON action plan. Return exactly {"testCaseId":"...","storyId":"...","steps":[{"id":"S1","sourceStep":"original step","action":"navigate|click|fill|press|waitForLoad|waitForText|assertVisible|assertHidden|assertEnabled|assertDisabled|assertSelected|assertUnselected|assertValue|assertText|assertUrl|noOp","target":"semantic UI target when needed","value":"URL or literal value when needed","valueRef":"test_data name for sensitive or reusable values","expected":"expected assertion value"}]}. Preserve all input steps in order. For the Etihad flight-search form, use the accessible control names "Flying from" for the Origin/departure field and "Flying to" for the Destination/arrival field. Map a step that says to wait for the page to load to waitForLoad, not waitForText; navigation already waits for the page navigation and waitForLoad confirms the current page is ready. For waitForText, always provide expected as the visible text to wait for. For a step waiting for airport suggestions after a field was filled, use the entered value (including the referenced test_data value) as expected, not the test_data key name. For assertValue steps, use expected with the literal expected field value from test_data; do not use valueRef for an assertion. Add explicit assertions for the expectedOutcome without changing its meaning. When expectedOutcome narratively describes a validation message, set the assertion expected value to the message phrase it describes, not the entire narrative sentence; do not assert that the narrative sentence itself appears in the UI. Do not produce selectors or code. Use valueRef for test_data values in fill steps. Omit optional fields when they do not apply; do not emit empty strings. If a step is ambiguous, encode it as a target and do not invent behavior.` },
+        { role: "system", content: `Convert the supplied UI test case into a JSON action plan. Return exactly {"testCaseId":"...","storyId":"...","steps":[{"id":"S1","sourceStep":"original step","action":"navigate|click|fill|press|waitForLoad|waitForText|assertVisible|assertHidden|assertEnabled|assertDisabled|assertSelected|assertUnselected|assertValue|assertText|assertUrl|assertUrlNot|noOp","target":"semantic UI target when needed","value":"URL or literal value when needed","valueRef":"test_data name for sensitive or reusable values","expected":"expected assertion value"}]}. Preserve every supplied step in order and copy its sourceStep exactly. The source step defines the action type: Open application=navigate with the configured application URL in value (never a valueRef); Click or Select suggestion=click; Enter=fill; Verify ... is visible/not visible/enabled/disabled/selected/not selected/value equals/contains text maps to the matching assert action; Verify page navigation is not <page name>=assertUrlNot. Never turn a verification step into an interaction or an interaction into an assertion. Keep assertion intent, target, and expected value separate; do not add a different assertion merely to make the plan pass. If a verification cannot be represented without changing its meaning, return a planning error rather than guessing. For Etihad use Flying from/Flying to for Origin/Destination. Use waitForLoad for page readiness, not waitForText. Airport suggestion waits must expect the entered value, never a test_data key. Use literal expected values for assertValue. Add expectedOutcome assertions only when an observable assertion can be derived without changing meaning; otherwise rely on the explicit verification steps. Do not create selectors or code. Use valueRef for reusable test data in fill steps. Omit optional fields when they do not apply; do not emit empty strings.` },
         { role: "user", content: JSON.stringify({ storyId, testCase: masked.testCase }) },
       ],);
-    const parsed = await this.structuredResponse.parse(response, ExecutionPlanSchema);
-    return ExecutionPlanSchema.parse(restoreTestDataMarkers(parsed, masked.values));
+    const parsed = await this.structuredResponse.parse(
+      response,
+      ExecutionPlanSchema,
+      normalizeApplicationNavigation,
+    );
+    const restored = ExecutionPlanSchema.parse(restoreTestDataMarkers(parsed, masked.values));
+    validatePlanActionIntents(restored, testCase);
+    return restored;
   }
 
 
+}
+
+export function linkTestCaseIdsToStory<T extends TestPlan>(
+  plan: T,
+  storyId?: string,
+): T {
+  const resolvedStoryId = storyId?.trim() || plan.storyId;
+  const prefix = storyId?.trim();
+  return {
+    ...plan,
+    storyId: resolvedStoryId,
+    testCases: plan.testCases.map((testCase, index) => ({
+      ...testCase,
+      id: prefix
+        ? `${prefix}-TC-${String(index + 1).padStart(3, "0")}`
+        : testCase.id,
+    })),
+  };
 }
 
 function maskTestData(testCase: TestCase) {

@@ -37,6 +37,9 @@ export default function TestCaseAccordion({
   const steps = testCase.plannedSteps ?? testCase.steps?.map(step => step.sourceStep) ?? [];
   const completedSteps = testCase.steps ?? [];
   const isTerminal = terminal.has(testCase.status as ExecutionStatus);
+  const activeStepNumber = testCase.activeStepId
+    ? Number(testCase.activeStepId.slice(1))
+    : testCase.currentStep ?? 0;
 
   return (
     <article className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
@@ -59,7 +62,7 @@ export default function TestCaseAccordion({
         </span>
         {active && (
           <span className="hidden rounded-full bg-yellow-100 px-2.5 py-1 text-xs font-semibold text-yellow-900 sm:inline dark:bg-yellow-950 dark:text-yellow-300">
-            Step {testCase.currentStep ?? 0} / {testCase.totalSteps ?? steps.length}
+            Step {activeStepNumber} / {testCase.totalSteps ?? steps.length}
           </span>
         )}
         {isTerminal && testCase.startedAt && (
@@ -114,6 +117,9 @@ export default function TestCaseAccordion({
                               {step.detail}
                             </span>
                           )}
+                        </span>
+                        <span className="shrink-0 text-xs capitalize text-slate-500 dark:text-slate-400">
+                          {state}
                         </span>
                       </li>
                     );
@@ -182,9 +188,6 @@ export default function TestCaseAccordion({
                         <p className="mt-1 break-all text-slate-500 dark:text-slate-400">{file}</p>
                       </div>
                     ))}
-                    <div className="rounded-lg border border-dashed border-slate-300 p-3 text-xs text-slate-500 dark:border-slate-600 dark:text-slate-400">
-                      DOM snapshot · future support
-                    </div>
                   </div>
                 </section>
               )}

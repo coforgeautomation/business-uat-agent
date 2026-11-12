@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   generatePlan,
   getPlans,
@@ -10,17 +10,14 @@ import {
   getSprintStories,
   getSprintContext,
   regenerateStory,
-  getTextExportUrl,
   getExcelExportUrl,
   getCreatedJiras,
-  executeApprovedTests,
 } from "@/lib/api";
 
 import StatCard from "@/components/StatCard";
 import ReviewModal from "@/components/ReviewModal";
 
 export default function HomePage() {
-  const router = useRouter();
   const [sprintId, setSprintId] = useState("37");
   const [loading, setLoading] = useState(false);
   const [plans, setPlans] = useState<any[]>([]);
@@ -240,17 +237,6 @@ export default function HomePage() {
     setReviewPlan(null);
     loadPlans();
   }
-
-  async function handleExecuteTests(storyId: string) {
-    try {
-      const job = await executeApprovedTests(storyId);
-      router.push(`/executions/${job.executionId}`);
-    } catch (error: any) {
-      console.error(error);
-      alert(error.message ?? "Could not start test execution");
-    }
-  }
-
 
   return (
     <main className="min-h-screen">
@@ -472,43 +458,39 @@ export default function HomePage() {
                               </button>
                             ) : plan.status === "approved" ? (
                               <>
+                                <Link
+                                  href={`/stories/${encodeURIComponent(plan.storyId)}/test-cases`}
+                                  className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                                >
+                                  View Test Cases
+                                </Link>
                                 <a
                                   href={getExcelExportUrl(plan.storyId)}
                                   className="bg-green-100 hover:bg-green-200 text-green-700 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
                                 >
                                   Download Excel
                                 </a>
-                                <button
-                                  type="button"
-                                  onClick={() => handleExecuteTests(plan.storyId)}
-                                  className="bg-purple-100 hover:bg-purple-200 disabled:opacity-60 text-purple-700 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
-                                >
-                                  Execute Tests
-                                </button>
                               </>
                             ) : (
-                              <button
-                                onClick={() =>
-                                  setReviewPlan({
-                                    ...plan,
-                                    description: story.description ?? "",
-                                  })
-                                }
-                                className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
-                              >
-                                Open Review
-                              </button>
-                            )}
-
-                            {plan && plan.status !== "approved" && (
-                              <a
-                                href={getTextExportUrl(plan.storyId)}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
-                              >
-                                View As Text
-                              </a>
+                              <>
+                                <button
+                                  onClick={() =>
+                                    setReviewPlan({
+                                      ...plan,
+                                      description: story.description ?? "",
+                                    })
+                                  }
+                                  className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                                >
+                                  Open Review
+                                </button>
+                                <a
+                                  href={getExcelExportUrl(plan.storyId)}
+                                  className="bg-green-100 hover:bg-green-200 text-green-700 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                                >
+                                  Download Excel
+                                </a>
+                              </>
                             )}
                           </div>
                         </td>

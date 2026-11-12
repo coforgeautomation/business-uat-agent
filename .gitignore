@@ -35,6 +35,8 @@ out/
 .playwright-mcp/
 output/automation/jobs/
 output/automation/executions/
+output/automation/execution-state/
+output/automation/script-repository/
 output/automation/mcp/
 output/automation/inspection-home.png
 output/reviews/*

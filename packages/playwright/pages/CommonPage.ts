@@ -29,6 +29,10 @@ export class CommonPage {
     await locator.click();
   }
 
+  async openApplication(){
+    await this.page.goto("https://www.etihad.com/en-in/", { waitUntil: "domcontentloaded" });
+  }
+
   async clickIfPresent(locator: Locator): Promise<void> {
     const count = await locator.count();
     if (count > 1) throw new Error(`Expected at most one optional control, found ${count}`);
@@ -62,6 +66,20 @@ export class CommonPage {
   async expectValue(locator: Locator, value: string): Promise<void> {
     await expect(locator).toHaveValue(value);
   }
+
+  async expectContainsText(locator: Locator, expected: string): Promise<void> {
+  const tagName = await locator.evaluate(
+    (el) => el.tagName.toLowerCase()
+  );
+
+  if (tagName === "input" || tagName === "textarea") {
+    await expect(locator).toHaveValue(
+      new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i")
+    );
+  } else {
+    await expect(locator).toContainText(expected);
+  }
+}
 
   async expectSelected(locator: Locator): Promise<void> {
     const selected = await locator.getAttribute("aria-selected");

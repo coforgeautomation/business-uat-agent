@@ -2,11 +2,11 @@ import type { ExecutionStatus } from "../../domain/src/testPlan.js";
 
 const transitions: Record<ExecutionStatus, readonly ExecutionStatus[]> = {
   queued: ["planning", "failed"],
-  planning: ["exploring", "blocked", "failed"],
+  planning: ["exploring", "replaying", "blocked", "failed"],
   exploring: ["executing", "blocked", "failed"],
   executing: ["generating", "blocked", "failed"],
   generating: ["replaying", "blocked", "failed"],
-  replaying: ["passed", "failed", "blocked"],
+  replaying: ["planning", "passed", "failed", "blocked"],
   passed: [], failed: [], blocked: [],
 };
 

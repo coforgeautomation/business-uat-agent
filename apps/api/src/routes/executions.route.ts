@@ -17,7 +17,7 @@ export function createExecutionsRouter(queue: ExecutionQueue) {
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      return res.status(/invalid|provide exactly|required/i.test(message) ? 400 : 500).json({ error: message });
+      return res.status(/invalid|provide|required/i.test(message) ? 400 : 500).json({ error: message });
     }
   });
 

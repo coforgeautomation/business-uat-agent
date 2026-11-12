@@ -29,7 +29,7 @@ export class LocatorResolver {
     sensitiveValues?: string[]; repair?: LocatorDescriptor;
     action?: "navigate" | "click" | "fill" | "press" | "waitForLoad" | "waitForText"
       | "assertVisible" | "assertHidden" | "assertEnabled" | "assertDisabled"
-      | "assertValue" | "assertText" | "assertUrl" | "assertSelected" | "assertUnselected" | "noOp";
+      | "assertValue" | "assertText" | "assertUrl" | "assertUrlNot" | "assertSelected" | "assertUnselected" | "noOp";
   }): Promise<ResolvedLocator> {
     const sensitiveValues = input.sensitiveValues ?? [];
     const target = redactSnapshot(input.target, sensitiveValues);

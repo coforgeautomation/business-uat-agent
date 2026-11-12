@@ -11,18 +11,23 @@ export default defineConfig({
   timeout: 60_000,
   expect: {timeout: 10_000,},
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 1 : 0,
+  retries: 1,
   workers: process.env.CI ? 2 : undefined,
-  reporter: [
-    ["list"],
-    [
-      "html",
-      {
-        outputFolder: "playwright-report",
-        open: "never",
-      },
-    ],
-  ],
+  reporter: process.env.PLAYWRIGHT_EXECUTION_PROGRESS_FILE
+    ? [
+        ["json"],
+        ["./packages/playwright/reporters/executionProgressReporter.ts"],
+      ]
+    : [
+        ["list"],
+        [
+          "html",
+          {
+            outputFolder: "playwright-report",
+            open: "never",
+          },
+        ],
+      ],
 
   use: {
     baseURL: getApplicationBaseUrl(),

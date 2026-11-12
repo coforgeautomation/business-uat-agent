@@ -42,6 +42,7 @@ export async function executeStory(
   storyId: string,
   planPath = "output/sprint-plan.json",
   onProgress?: (progress: StoryProgressUpdate) => void | Promise<void>,
+  options: { jobExecutionId?: string } = {},
 ) {
   const plan = await readApprovedPlan(planPath);
   const story = findStory(plan, storyId);
@@ -104,7 +105,7 @@ export async function executeStory(
         });
       }
       await publishProgress(current);
-    });
+    }, options);
     current.status = caseStatus(result.status);
     current.finishedAt = new Date().toISOString();
     current.currentStep = result.steps.length;

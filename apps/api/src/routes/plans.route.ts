@@ -1,7 +1,6 @@
 import { Router } from "express";
 import fs from "fs/promises";
 import path from "path";
-import { readTestPlanTextExport } from "../lib/text-export";
 import * as XLSX from "xlsx";
 
 export const plansRouter = Router();
@@ -19,15 +18,6 @@ plansRouter.get("/", async (_, res) => {
   }
 });
 
-plansRouter.get("/:storyId/text", async (req, res) => {
-  try {
-    const text = await readTestPlanTextExport(req.params.storyId);
-    res.type("text/plain").send(text);
-  } catch {
-    res.status(404).type("text/plain").send("Text export not found.");
-  }
-});
-
 plansRouter.get("/:storyId/excel", async (req, res) => {
   try {
     const file = path.join(process.cwd(), "output", "sprint-plan.json");
@@ -38,10 +28,6 @@ plansRouter.get("/:storyId/excel", async (req, res) => {
 
     if (!plan) {
       return res.status(404).send("Story plan not found.");
-    }
-
-    if (plan.status !== "approved") {
-      return res.status(409).send("Only approved story plans can be downloaded.");
     }
 
     const rows = (plan.testCases ?? []).map((testCase: any) => ({
@@ -78,7 +64,7 @@ plansRouter.get("/:storyId/excel", async (req, res) => {
     ];
 
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Approved Test Cases");
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Test Cases");
     const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
 
     res
@@ -87,7 +73,7 @@ plansRouter.get("/:storyId/excel", async (req, res) => {
       )
       .setHeader(
         "Content-Disposition",
-        `attachment; filename="${plan.storyId}-approved-test-cases.xlsx"`,
+        `attachment; filename="${plan.storyId}-test-cases.xlsx"`,
       )
       .send(buffer);
   } catch (error: any) {

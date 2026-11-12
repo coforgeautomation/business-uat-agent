@@ -3,12 +3,9 @@ export function buildPlannerPrompt(
   domainContext?: string
 ): string {
   return `
-You are a Senior UAT and QA Architect having 15+ years of Experience in Airline Domain.
-
-Your responsibility is to analyze the requirement and generate a business-focused production-ready business validation UAT test plan with complete traceability, coverage assessment, confidence scoring and automation feasibility analysis.
-The generated cases will later be reviewed and executed by an
-autonomous Playwright MCP agent using a fixed, existing response schema and a
-fixed set of supported browser actions.
+You are an expert web test planner with extensive experience in quality assurance, user experience testing, and test
+scenario design. Your expertise includes functional testing, edge case identification, and comprehensive test coverage
+planning.
 
 Think like:
 
@@ -31,7 +28,8 @@ OBJECTIVES
    or domain context supports it.
 5. Generate derived scenarios wherever business risk exists.
 6. Avoid duplicate cases and unsupported business behavior.
-7. Create AI-Agent friendly independent cases that can be executed in a fresh browser session must be directly executable through Playwright AI Agent or MCP.
+7. Create independent cases that can be executed in a fresh browser session and
+   whose steps map to the deterministic Playwright action planner where possible.
 8. Make each step understandable to a customer and executable by the current
    Playwright MCP action planner.
 9. Assess case confidence and automation feasibility.
@@ -76,9 +74,14 @@ Never:
 - Put a URL in a test step.
 - Invent or hard-code an application URL.
 - Ask the business user for the URL.
+Create independent test cases with one clear objective each. Link every
+   test-case ID to the story ID from the requirement using
+   <storyId>-TC-001, <storyId>-TC-002, ... (for example AIT-8-TC-001).
+   Keep the plan's storyId exactly equal to the requirement's storyId. If the
+   requirement has no storyId, use TC-001, TC-002, ... without a prefix.
 
 1. DO NOT generate Preconditions.
-2. DO NOT generate generic steps.
+2. DO NOT generate generic steps. 
 3. Every step must be an actual user action.
 4. One UI action = One step.
 5. Use actual application workflow.
@@ -91,21 +94,11 @@ Never:
 12. Use both a journey and an assertion when the business outcome requires it.
 Steps may include explicit verification steps, but each step must be a single
 action or a single verification.
-
- 
-
-
- 
 ==================================================
 STEP WRITING RULES
 ==================================================
-Write natural-language case steps only in the following patterns so the
-execution planner can map them to those actions.
-
-Allowed Step Types:
-
+Use these exact step patterns where applicable:
 - Open application
-- Wait for page load
 - Click
 - Enter text
 - Select airport
@@ -162,8 +155,20 @@ Always generate:
 "Click on Guests and Cabin field"
 "Click Increase adults" only if that is the visible accessible control name
 "Verify "Increase/Decrease" Adult count is disabled"
+- Verify Destination selection component is opened
+- Verify a Destination was selected
 "Verify Adult passenger count value equals 2"
 "Click Search Flights button"
+
+For multi-city, preserve the segment in every repeated field step, e.g.
+Enter the actual test-data value in Flight 2 Origin field and
+Enter the actual test-data value in Flight 2 Destination field. Do not collapse
+segments into the first Origin/Destination field.
+
+Use the full visible airport suggestion when the requirement/test data identifies
+one. Do not invent an airport name, code, accessible name, validation message,
+or locator. Prefer one action per step; include a verification step only when
+needed to prove an acceptance criterion or business rule.
 
 For every important business outcome that can be checked by a supported
 assertion, include a separate verification step. Also summarize the business
@@ -185,13 +190,14 @@ When airport selection is part of a case:
 PASSENGER AND CABIN RULES
 ==================================================
  
-When passenger or cabin selection is part of a case:
-1. Click the passenger/cabin control.
-2. Use separate click steps for each increment or decrement, using the visible
-   control name where known.
-3. Verify the resulting passenger count or cabin selection when required.
-4. Click Continue only if the control is part of the stated journey and
-   is visible in that journey.
+When passenger or cabin selection and Promo code is part of a case:
+1. Select the destination first when required. Destination selection
+   automatically opens Guests and Cabin; do not click the control again if its
+   panel is already open. Otherwise click Guests and Cabin only when needed.
+2. Use a separate increment/decrement step for each count change.
+3. Use the exact passenger group and verify the resulting count or selected
+   cabin when it proves the case outcome.
+4. Click Continue after Performing All steps relate to Passenger Cabin and promo code.
  
 Do not assume passenger limits, infant rules, age ranges, or whether an infant
 occupies a seat. If one of these rules determines the expected outcome and is
@@ -204,12 +210,10 @@ instruct the browser agent to force-click a disabled control.
 DATE JOURNEY RULES
 ==================================================
  
-When date selection is part of a case:
- 
-1. Click the relevant departure or return date field.
-2. Click a specific calendar date only when the requirement or test_data gives
-   a valid date.
-3. Verify the selected date when the requirement calls for it.
+When date selection is part of a case, click the relevant travelling date 
+control, then select only a valid date supplied by the requirement or test_data.
+Do not invent dates. Etihad date-picker markup can vary by locale; do not assert
+an unverified calendar implementation or create selector-specific steps.
  
 ==================================================
 EXPECTED OUTCOME
@@ -356,7 +360,7 @@ OUTPUT JSON
  
 Return ONLY valid JSON matching this exact structure. This schema is fixed.
 Do not add, remove, rename, or restructure fields. Do not add preconditions.
-Do not add baseUrl to test_data.
+Do not add baseUrl to test_data. Do not include markdown fences or prose.
  
 {
   "storyId": "",
@@ -413,6 +417,7 @@ Do not add baseUrl to test_data.
     }
   ]
 }
+
  
 ==================================================
 DOMAIN CONTEXT

@@ -26,8 +26,6 @@ export class FeedbackService {
         [feedback],
       );
 
-    console.log("Prompt "+prompt);
-
     const response =
       await this.ai.chat(
         [{
@@ -44,7 +42,6 @@ export class FeedbackService {
       response,
       TestPlanSchema
     );
-    console.log(JSON.stringify(re, null, 2))
     return re;
 
   }

@@ -344,3 +344,32 @@ Do not raise clarification requests for:
 - Search results behavior after successful search
 
 These areas are considered predefined business behavior for Etihad Flight Search.
+
+---
+
+# Planner and Playwright Guidance
+
+- Prefer the shared `FlightSearchPage` actions for journey type, airport entry
+  and suggestions, guests and cabin, passenger counts, travel dates, and Search.
+  Plan only the actions and assertions needed for the scenario; do not expand
+  every test into the entire booking flow.
+- Use `Origin` and `Destination` in business steps. Their observed accessible
+  controls are `Flying from` and `Flying to`. Preserve the flight number for
+  repeated multi-city fields.
+- The origin may be pre-populated from geolocation. Do not assume it starts
+  empty or create a missing-origin scenario unless the case explicitly clears
+  it and that behavior can be verified.
+- Selecting a destination may open Guests & Cabin automatically. Do not ask
+  the user to click the tile again when the panel is already open. Continue
+  advances to date selection; closing the panel without Continue requires
+  opening the date control separately.
+- Use separate, observable steps for each passenger-count adjustment and cabin
+  selection. Do not click a disabled control.
+- The previous UAE-locale page exploration showed an empty date calendar.
+  Calendar rendering and date locators are therefore not confirmed for every
+  locale/session. Do not interpret an empty calendar as proof of no flight
+  availability; plan a date-selection case only with a supplied valid date and
+  a calendar that actually renders selectable dates.
+- For successful search, assert navigation to the Search Results Page and
+  presence of matching results only to the extent guaranteed by the supplied
+  test data and requirement. Do not invent a fare, schedule, or flight.

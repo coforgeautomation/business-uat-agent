@@ -23,7 +23,13 @@ function statusBadge(status: ExecutionJob["status"]) {
   return "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300";
 }
 
-export default function ExecutionDashboard({ executionId }: { executionId: string }) {
+export default function ExecutionDashboard({
+  executionId,
+  returnTo,
+}: {
+  executionId: string;
+  returnTo?: string;
+}) {
   const [job, setJob] = useState<ExecutionJob | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
@@ -93,10 +99,23 @@ export default function ExecutionDashboard({ executionId }: { executionId: strin
         <div className="mx-auto max-w-4xl rounded-2xl border border-red-200 bg-white p-8 dark:border-red-900 dark:bg-slate-900">
           <h1 className="text-xl font-bold text-slate-900 dark:text-white">Could not load execution</h1>
           <p className="mt-2 text-sm text-red-700 dark:text-red-300">{error}</p>
-          <Link href="/" className="mt-5 inline-block text-sm font-semibold text-blue-700 dark:text-blue-300">Return to dashboard</Link>
+          <Link href={safeReturnPath(returnTo) ?? "/"} className="mt-5 inline-block text-sm font-semibold text-blue-700 dark:text-blue-300">
+            Return to {safeReturnPath(returnTo) ? "Test Cases" : "dashboard"}
+          </Link>
         </div>
       </main>
     );
+  }
+
+  function safeReturnPath(value?: string): string | undefined {
+    if (!value || !value.startsWith("/") || value.startsWith("//") || value.includes("\\")) return undefined;
+    try {
+      const parsed = new URL(value, "http://localhost");
+      if (parsed.origin !== "http://localhost") return undefined;
+      return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+    } catch {
+      return undefined;
+    }
   }
   if (!job) return <main className="min-h-screen bg-slate-50 p-8 text-slate-600 dark:bg-slate-950 dark:text-slate-300">Loading execution…</main>;
 
@@ -106,12 +125,17 @@ export default function ExecutionDashboard({ executionId }: { executionId: strin
     : cases.filter(testCase => terminalStatuses.has(testCase.status)).length);
   const terminal = terminalStatuses.has(job.status);
   const observations = progress?.observation ?? [];
+  const returnPath = safeReturnPath(returnTo) ??
+    (job.storyId && job.testCaseId
+      ? `/stories/${encodeURIComponent(job.storyId)}/test-cases`
+      : "/");
+  const backLabel = returnPath.startsWith("/stories/") ? "Test Cases" : "Sprint dashboard";
 
   return (
     <main className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       <div className="mx-auto max-w-[1500px] space-y-6 p-4 sm:p-6 lg:p-8">
-        <Link href="/" className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-blue-700 dark:text-slate-400 dark:hover:text-blue-300">
-          <span aria-hidden="true">←</span> Sprint dashboard
+        <Link href={returnPath} className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-blue-700 dark:text-slate-400 dark:hover:text-blue-300">
+          <span aria-hidden="true">←</span> Back to {backLabel}
         </Link>
 
         <header className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7 dark:border-slate-700 dark:bg-slate-900">
@@ -223,7 +247,6 @@ export default function ExecutionDashboard({ executionId }: { executionId: strin
                   {Object.entries(progress.currentCase.evidence).map(([name, file]) => (
                     <p key={name} className="break-all text-slate-600 dark:text-slate-300"><strong>{name}:</strong> {file}</p>
                   ))}
-                  <p className="text-slate-500 dark:text-slate-400">DOM snapshot · future support</p>
                 </div>
               </section>
             )}

@@ -5,7 +5,7 @@
       "key": "AIT-8",
       "id": "10043",
       "summary": "Passenger Management & Cabin Selection",
-      "updated": "2026-11-03T13:56:25.738+0530",
+      "updated": "2026-11-10T14:53:35.714+0530",
       "requirement": {
         "storyId": "AIT-8",
         "title": "Passenger Management & Cabin Selection",
@@ -22,7 +22,7 @@
         ]
       },
       "firstSeenAt": "2026-11-09T11:02:43.805Z",
-      "lastSyncedAt": "2026-11-09T13:23:08.629Z",
+      "lastSyncedAt": "2026-11-12T10:15:50.133Z",
       "isNew": false,
       "inSprint": true
     },
@@ -43,7 +43,7 @@
         ]
       },
       "firstSeenAt": "2026-11-09T11:02:43.805Z",
-      "lastSyncedAt": "2026-11-09T13:23:08.629Z",
+      "lastSyncedAt": "2026-11-12T10:15:50.133Z",
       "isNew": false,
       "inSprint": true
     }

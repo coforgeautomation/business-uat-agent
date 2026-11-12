@@ -1,7 +1,11 @@
 import { z } from "zod";
 
 export class StructuredResponseService {
-  parse<T>(rawResponse: string, schema: z.ZodType<T>): T {
+  parse<T>(
+    rawResponse: string,
+    schema: z.ZodType<T>,
+    normalize: (value: unknown) => unknown = value => value,
+  ): T {
     const cleaned = this.removeMarkdownCodeFence(rawResponse);
 
     let parsed: unknown;
@@ -17,7 +21,7 @@ ${rawResponse}`,
       );
     }
 
-    const result = schema.safeParse(parsed);
+    const result = schema.safeParse(normalize(parsed));
 
     if (!result.success) {
       throw new Error(

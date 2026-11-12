@@ -19,6 +19,7 @@ import { reportsRouter } from "./routes/reports.route";
 import { testCaseReviewRouter } from "./routes/testcase-review.route";
 import { createAutomationRouter } from "./routes/automation.route.js";
 import { createExecutionsRouter } from "./routes/executions.route.js";
+import { createScriptsRouter, pausePendingAutomationGenerationBatches } from "./routes/scripts.route.js";
 import { ExecutionQueue } from "./workers/executionQueue.js";
 const app = express();
 
@@ -31,10 +32,6 @@ app.use("/generate-plan", generatePlanRouter);
 app.use("/review", reviewRouter);
 app.use("/approve", approveRouter);
 app.use("/plans",plansRouter);
-console.log(
-  "approveSprintRouter",
-  approveSprintRouter
-);
 app.use("/approve-sprint",approveSprintRouter);
 app.use("/jira-status", jiraStatusRouter);
 app.use("/sprint-stories", sprintStoriesRouter);
@@ -47,9 +44,10 @@ app.use("/reports", reportsRouter);
 const executionQueue = new ExecutionQueue();
 app.use("/automation", createAutomationRouter(executionQueue));
 app.use("/api/executions", createExecutionsRouter(executionQueue));
+app.use("/api/scripts", createScriptsRouter(executionQueue));
 
-void executionQueue.restorePending().catch(error => {
-  console.error("Could not restore queued executions:", error);
+void pausePendingAutomationGenerationBatches().catch(error => {
+  console.error("Could not pause interrupted automation generation batches:", error);
 });
 
 const PORT = 4000;

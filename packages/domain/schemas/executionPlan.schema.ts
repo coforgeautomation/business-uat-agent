@@ -4,11 +4,12 @@ const optionalText = z.preprocess(
   value => typeof value === "string" && !value.trim() ? undefined : value,
   z.string().trim().min(1).optional(),
 );
+const optionalExpected = z.string().optional();
 
 export const ExecutionActionSchema = z.enum([
   "navigate", "click", "fill", "press", "waitForLoad", "waitForText",
   "assertVisible", "assertHidden", "assertEnabled", "assertDisabled",
-  "assertValue", "assertText", "assertUrl", "assertSelected", "assertUnselected", "noOp",
+  "assertValue", "assertText", "assertUrl", "assertUrlNot", "assertSelected", "assertUnselected", "noOp",
 ]);
 
 export const PlannedStepSchema = z.object({
@@ -18,7 +19,7 @@ export const PlannedStepSchema = z.object({
   target: optionalText,
   value: optionalText,
   valueRef: optionalText,
-  expected: optionalText,
+  expected: optionalExpected,
   timeoutMs: z.number().int().positive().max(120_000).optional(),
   locatorKey: optionalText,
 }).strict().superRefine((step, ctx) => {
@@ -32,7 +33,7 @@ export const PlannedStepSchema = z.object({
   if (step.action === "fill" && step.value === undefined && !step.valueRef) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["value"], message: "fill requires value or valueRef" });
   }
-  if (["waitForText", "assertText", "assertUrl", "assertValue"].includes(step.action) && step.expected === undefined && step.value === undefined) {
+  if (["waitForText", "assertText", "assertUrl", "assertUrlNot", "assertValue"].includes(step.action) && step.expected === undefined && step.value === undefined) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["expected"], message: `${step.action} requires expected or value` });
   }
 });
